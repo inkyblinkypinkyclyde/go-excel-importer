@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -31,8 +30,7 @@ func main() {
 
 	rows := f.GetRows("Data")
 
-	fmt.Printf("Total rows: %d", len(rows))
-	fmt.Printf("rows is a %s", reflect.TypeOf(rows))
+	fmt.Printf("Total rows: %d\n", len(rows))
 
 	db := connectdb()
 
@@ -74,7 +72,7 @@ func main() {
 
 			idforSQL := strconv.Itoa(id)
 			sqlStatement := "UPDATE employees SET " + columnHeaders[columnIndex] + " = '" + cell + "' WHERE id = " + idforSQL
-			fmt.Println(sqlStatement)
+			// fmt.Println(sqlStatement)
 			_, err := db.Exec(sqlStatement) // TODO: change this to a variable
 			if err != nil {
 				fmt.Println("\nError inserting data: ", err)
