@@ -3,15 +3,61 @@ package main
 import (
 	"database/sql"
 	"fmt"
+
+	// "net/http"
+	// "reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/360EntSecGroup-Skylar/excelize"
+	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 )
 
+type ExcelData struct {
+	pgUser     string
+	pgPassword string
+	pgTable    string
+	db         *sql.DB
+}
+
+var documentName string = "EmployeeSampleDataFiveRows"
+var pgUser string = "richardgannon"
+var pgPassword string = "postgres"
+
+var dbValues = &ExcelData{pgUser, pgPassword, documentName, connectdb(pgUser, pgPassword)}
+
+func getData(c *gin.Context) {
+	column := c.Param("column")
+	datum := c.Param("datum")
+	// var columnNames []string
+	// sql_query := "SELECT * FROM " + dbValues.pgTable + " WHERE " + column + " = '" + datum + "';"
+	sql_query := "SELECT * FROM " + dbValues.pgTable
+	fmt.Println(sql_query)
+	rows, err := dbValues.db.Query(sql_query)
+	if err != nil {
+		fmt.Println("Error getting data: ", err)
+	}
+	// columnNames, err := rows.Columns()
+	columns, err := rows.Columns()
+	if err != nil {
+		fmt.Println("Error getting columns: ", err)
+	}
+	// data := make(map[string]string)
+	for rows.Next() {
+		fmt.Println(columns)
+		// data[columns[0]] = rows.Scan(&data[columns[0]])
+
+	}
+	fmt.Println(dbValues.db)
+	fmt.Printf("Column: %s, Datum: %s", column, datum)
+	// fmt.Printf("db is a : %s", reflect.TypeOf(db))
+	// c.IndentedJSON(http.StatusOK, ) // data is going to be data pulled from the database
+}
+
 func connectdb(pgUser string, pgPassword string) *sql.DB {
+
 	connStr := "postgresql://localhost/importedExcelSheets?user=" + pgUser + "&password=" + pgPassword + "&sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -20,15 +66,14 @@ func connectdb(pgUser string, pgPassword string) *sql.DB {
 	return db
 }
 func main() {
-	var documentName string
-	var pgUser string
-	var pgPassword string
-	fmt.Println("Enter your postgres username: ")
-	fmt.Scanln(&pgUser)
-	fmt.Println("Enter your postgres password: ")
-	fmt.Scanln(&pgPassword)
-	fmt.Println("Enter the name of the excel document: ")
-	fmt.Scanln(&documentName)
+
+	// dbValues := &ExcelData{pgUser, pgPassword, "importedExcelSheets", connectdb(pgUser, pgPassword)}
+	// fmt.Println("Enter your postgres username: ")
+	// fmt.Scanln(&pgUser)
+	// fmt.Println("Enter your postgres password: ")
+	// fmt.Scanln(&pgPassword)
+	// fmt.Println("Enter the name of the excel document: ")
+	// fmt.Scanln(&documentName)
 	started := time.Now()
 
 	f, err := excelize.OpenFile(documentName + ".xlsx")
@@ -81,7 +126,7 @@ func main() {
 			fmt.Println("\nError inserting id: ", err)
 		}
 		for _, cell := range row {
-
+			cell = strings.Replace(cell, " ", "_", -1)
 			idforSQL := strconv.Itoa(id)
 			sqlStatement := "UPDATE " + documentName + " SET " + columnHeaders[columnIndex] + " = '" + cell + "' WHERE id = " + idforSQL
 			_, err := db.Exec(sqlStatement)
@@ -97,5 +142,8 @@ func main() {
 	db.Close()
 	finished := time.Now()
 	fmt.Printf("Script took %s to run \n", finished.Sub(started))
+	router := gin.Default()
+	router.GET(":column/:datum", getData)
+	router.Run(":8080")
 
 }
