@@ -22,13 +22,13 @@ type ExcelData struct {
 	db         *sql.DB
 }
 
-var documentName string = "EmployeeSampleDataFiveRows"
+var documentName string = "EmployeeSampleData"
 var pgUser string = "richardgannon"
 var pgPassword string = "postgres"
 
 var dbValues = &ExcelData{pgUser, pgPassword, documentName, connectdb(pgUser, pgPassword)}
 
-func getColumnNames() []string {
+func getColumnNames() []string { // gets the column headers from the db
 	f, err := dbValues.db.Query("SELECT * FROM " + dbValues.pgTable + " WHERE 1=0")
 	if err != nil {
 		fmt.Println(err)
@@ -45,10 +45,8 @@ func getData(c *gin.Context) {
 	column := c.Param("column") // this is pulled form the url
 	datum := c.Param("datum")   // this is pulled from the url
 
-	sql_query := "SELECT id FROM " + dbValues.pgTable + " WHERE " + column + " = '" + datum + "';"
-	// sql_query := "SELECT id FROM " + dbValues.pgTable + " WHERE id > 0"
-	// fmt.Println(sql_query)
-	rows, err := dbValues.db.Query(sql_query) //query the database
+	sql_query := "SELECT id FROM " + dbValues.pgTable + " WHERE " + column + " = '" + datum + "';" //gets the ids from the db whcih match the column and datum
+	rows, err := dbValues.db.Query(sql_query)
 	defer rows.Close()
 	if err != nil {
 		fmt.Println("Error getting data: ", err)
@@ -62,18 +60,15 @@ func getData(c *gin.Context) {
 			fmt.Println("Error scanning data: ", err)
 		}
 
-		pgIDs = append(pgIDs, pgID) // returns a string of sql IDs which match the criteria in the url
+		pgIDs = append(pgIDs, pgID) // generates a string of postgres IDs which match the criteria
 	}
 
-	fmt.Println(pgIDs)
-
-	// loop through column names and create a map of column names and values
-	columnNames := getColumnNames()
-	for _, pgID := range pgIDs {
+	columnNames := getColumnNames()                        // TODO; get this to return the column names in the correct order
+	fullJsonSlice := make([]map[string]string, len(pgIDs)) // creates a slice of maps as long as the length of PG IDs
+	for _, pgID := range pgIDs {                           // loops through the PG IDs
+		jsonMap := make(map[string]string) //makes a map for each one
 		for i := 0; i < len(columnNames); i++ {
-			fmt.Println(columnNames[i])
-			sql_query := "SELECT " + columnNames[i] + " FROM " + dbValues.pgTable + " WHERE id = " + pgID + ";"
-			// fmt.Println(sql_query)
+			sql_query := "SELECT " + columnNames[i] + " FROM " + dbValues.pgTable + " WHERE id = " + pgID + ";" // queries the db for a column cells value matching the column name and the id
 			rows, err := dbValues.db.Query(sql_query)
 			defer rows.Close()
 			if err != nil {
@@ -81,14 +76,18 @@ func getData(c *gin.Context) {
 			}
 			for rows.Next() {
 				var value string
-				err := rows.Scan(&value)
+				err := rows.Scan(&value) //retrieves the value and assigns it to a variable
 				if err != nil {
 					fmt.Println("Error scanning data: ", err)
 				}
-				fmt.Println(value)
+
+				jsonMap[columnNames[i]] = value //adds this key value pair to the map
 			}
 		}
+
+		fullJsonSlice = append(fullJsonSlice, jsonMap) //adds the map to the slice
 	}
+	c.JSON(200, fullJsonSlice) // makes it into json
 }
 
 func connectdb(pgUser string, pgPassword string) *sql.DB {
