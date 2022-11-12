@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	// "net/http"
-	// "reflect"
+
 	"strconv"
 	"strings"
 	"time"
@@ -28,32 +28,67 @@ var pgPassword string = "postgres"
 
 var dbValues = &ExcelData{pgUser, pgPassword, documentName, connectdb(pgUser, pgPassword)}
 
+func getColumnNames() []string {
+	f, err := dbValues.db.Query("SELECT * FROM " + dbValues.pgTable + " WHERE 1=0")
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer f.Close()
+	columnNames, err := f.Columns()
+	if err != nil {
+		fmt.Println(err)
+	}
+	return columnNames
+}
+
 func getData(c *gin.Context) {
-	column := c.Param("column")
-	datum := c.Param("datum")
-	// var columnNames []string
-	// sql_query := "SELECT * FROM " + dbValues.pgTable + " WHERE " + column + " = '" + datum + "';"
-	sql_query := "SELECT * FROM " + dbValues.pgTable
-	fmt.Println(sql_query)
-	rows, err := dbValues.db.Query(sql_query)
+	column := c.Param("column") // this is pulled form the url
+	datum := c.Param("datum")   // this is pulled from the url
+
+	sql_query := "SELECT id FROM " + dbValues.pgTable + " WHERE " + column + " = '" + datum + "';"
+	// sql_query := "SELECT id FROM " + dbValues.pgTable + " WHERE id > 0"
+	// fmt.Println(sql_query)
+	rows, err := dbValues.db.Query(sql_query) //query the database
+	defer rows.Close()
 	if err != nil {
 		fmt.Println("Error getting data: ", err)
 	}
-	// columnNames, err := rows.Columns()
-	columns, err := rows.Columns()
-	if err != nil {
-		fmt.Println("Error getting columns: ", err)
-	}
-	// data := make(map[string]string)
-	for rows.Next() {
-		fmt.Println(columns)
-		// data[columns[0]] = rows.Scan(&data[columns[0]])
 
+	var pgIDs []string
+	for rows.Next() {
+		var pgID string
+		err := rows.Scan(&pgID)
+		if err != nil {
+			fmt.Println("Error scanning data: ", err)
+		}
+
+		pgIDs = append(pgIDs, pgID) // returns a string of sql IDs which match the criteria in the url
 	}
-	fmt.Println(dbValues.db)
-	fmt.Printf("Column: %s, Datum: %s", column, datum)
-	// fmt.Printf("db is a : %s", reflect.TypeOf(db))
-	// c.IndentedJSON(http.StatusOK, ) // data is going to be data pulled from the database
+
+	fmt.Println(pgIDs)
+
+	// loop through column names and create a map of column names and values
+	columnNames := getColumnNames()
+	for _, pgID := range pgIDs {
+		for i := 0; i < len(columnNames); i++ {
+			fmt.Println(columnNames[i])
+			sql_query := "SELECT " + columnNames[i] + " FROM " + dbValues.pgTable + " WHERE id = " + pgID + ";"
+			// fmt.Println(sql_query)
+			rows, err := dbValues.db.Query(sql_query)
+			defer rows.Close()
+			if err != nil {
+				fmt.Println("Error getting data: ", err)
+			}
+			for rows.Next() {
+				var value string
+				err := rows.Scan(&value)
+				if err != nil {
+					fmt.Println("Error scanning data: ", err)
+				}
+				fmt.Println(value)
+			}
+		}
+	}
 }
 
 func connectdb(pgUser string, pgPassword string) *sql.DB {
